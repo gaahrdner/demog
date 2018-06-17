@@ -36,7 +36,7 @@ type CensusAPI struct {
 	} `json:"Results"`
 }
 
-//DemographicAPI
+//DemographicAPI represents the demographic data from the api
 type DemographicAPI struct {
 	Status       string        `json:"status"`
 	ResponseTime int           `json:"responseTime"`
@@ -74,7 +74,7 @@ type DemographicAPI struct {
 const StateURL = "https://www.broadbandmap.gov/broadbandmap/census/state/"
 
 // DemographicURL is the API endpoint that returns demographic information
-const DemographicURL = "https://www.broadbandmap.gov/broadbandmap/demographic/jun2014/"
+const DemographicURL = "https://www.broadbandmap.gov/broadbandmap/demographic/jun2014/state/ids/"
 
 // Fmt is the format returned from the API
 const Fmt = "?format=json"
@@ -99,6 +99,8 @@ func main() {
 
 	app.Action = func(c *cli.Context) error {
 
+		var data []*USState
+
 		if len(c.Args()) == 0 {
 			cli.ShowAppHelp(c)
 			os.Exit(0)
@@ -116,8 +118,18 @@ func main() {
 				log.Fatal(err)
 			}
 			state.fips = fips
-			fmt.Println(state)
+
+			demo := getDemoData(state.fips)
+
+			state.households = demo.Results[0].Households
+			state.population = demo.Results[0].Population
+			state.medianIncome = demo.Results[0].MedianIncome
+
+			data = append(data, state)
+
 		}
+
+		fmt.Println(data)
 
 		return nil
 	}
@@ -150,7 +162,6 @@ func getGeoData(s string) *CensusAPI {
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		log.Fatal(err)
-		os.Exit(1)
 	}
 
 	client := &http.Client{}
@@ -158,7 +169,6 @@ func getGeoData(s string) *CensusAPI {
 	resp, err := client.Do(req)
 	if err != nil {
 		log.Fatal(err)
-		os.Exit(1)
 	}
 
 	defer resp.Body.Close()
@@ -166,8 +176,34 @@ func getGeoData(s string) *CensusAPI {
 	var census CensusAPI
 
 	if err := json.NewDecoder(resp.Body).Decode(&census); err != nil {
-		log.Println(err)
+		log.Fatal(err)
 	}
 
 	return &census
+}
+
+func getDemoData(fips int) *DemographicAPI {
+	url := fmt.Sprintf(DemographicURL + strconv.Itoa(fips) + Fmt)
+
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	client := &http.Client{}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	defer resp.Body.Close()
+
+	var demo DemographicAPI
+
+	if err := json.NewDecoder(resp.Body).Decode(&demo); err != nil {
+		log.Fatal(err)
+	}
+
+	return &demo
 }
