@@ -6,7 +6,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"strconv"
 	"strings"
 
 	"github.com/urfave/cli"
@@ -15,7 +14,7 @@ import (
 //USState represents a state object
 type USState struct {
 	name         string
-	fips         int
+	fips         string
 	population   int
 	households   int
 	medianIncome float64
@@ -113,11 +112,7 @@ func main() {
 			state := new(USState)
 			state.name = s
 
-			fips, err := strconv.Atoi(getGeoData(s).Results.State[0].Fips)
-			if err != nil {
-				log.Fatal(err)
-			}
-			state.fips = fips
+			state.fips = getGeoData(s).Results.State[0].Fips
 
 			demo := getDemoData(state.fips)
 
@@ -129,7 +124,16 @@ func main() {
 
 		}
 
-		fmt.Println(data)
+		if output == "csv" {
+			fmt.Println("name,fips,population,households,median_income")
+			for _, s := range data {
+				fmt.Printf("%v,%v,%d,%d,%f\n", s.name, string(s.fips), s.population, s.households, s.medianIncome)
+			}
+		} else if output == "averages" {
+			fmt.Println(weightedAverage(data))
+		} else {
+			fmt.Println("The --format flag must be specified and be one of csv or averages")
+		}
 
 		return nil
 	}
@@ -144,20 +148,34 @@ func main() {
 // cleanInput handles white space issues when inputting states with commas
 func cleanInput(a []string) []string {
 
-	var dirty, clean []string
-	if len(a) == 1 {
-		dirty = strings.Split(a[0], ",")
-	} else {
-		dirty = a
+	// we need to handle white space cases
+	arrayToString := strings.Join(a, "")
+	array := strings.Split(arrayToString, ",")
+
+	var clean []string
+	for _, s := range array {
+
+		s = strings.ToLower(s)
+		if strings.Contains(s, "new") {
+			clean = append(clean, strings.Replace(s, "new", "new%20", 1))
+		} else if strings.Contains(s, "north") {
+			clean = append(clean, strings.Replace(s, "north", "north%20", 1))
+		} else if strings.Contains(s, "south") {
+			clean = append(clean, strings.Replace(s, "south", "south%20", 1))
+		} else if strings.Contains(s, "west") {
+			clean = append(clean, strings.Replace(s, "west", "west%20", 1))
+		} else if strings.Contains(s, "rhode") {
+			clean = append(clean, strings.Replace(s, "rhode", "rhode%20", 1))
+		} else {
+			clean = append(clean, s)
+		}
 	}
-	for _, state := range dirty {
-		clean = append(clean, strings.Trim(state, ","))
-	}
+
 	return clean
 }
 
 func getGeoData(s string) *CensusAPI {
-	url := fmt.Sprintf(StateURL + s + Fmt)
+	url := StateURL + s + Fmt
 
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -178,12 +196,11 @@ func getGeoData(s string) *CensusAPI {
 	if err := json.NewDecoder(resp.Body).Decode(&census); err != nil {
 		log.Fatal(err)
 	}
-
 	return &census
 }
 
-func getDemoData(fips int) *DemographicAPI {
-	url := fmt.Sprintf(DemographicURL + strconv.Itoa(fips) + Fmt)
+func getDemoData(fips string) *DemographicAPI {
+	url := fmt.Sprintf(DemographicURL + fips + Fmt)
 
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -207,3 +224,19 @@ func getDemoData(fips int) *DemographicAPI {
 
 	return &demo
 }
+
+func weightedAverage(states []*USState) float64 {
+	var sumHouseholds int
+	var sumIncome float64
+	for _, s := range states {
+		sumIncome += s.medianIncome * float64(s.households)
+		sumHouseholds += s.households
+	}
+	return sumIncome / float64(sumHouseholds)
+}
+
+// func (s *USState) toArray() []string {
+// 	var array []string
+// 	array = append(array, s.name)
+// 	return array
+// }

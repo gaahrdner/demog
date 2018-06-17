@@ -5,3 +5,4 @@
 ## Limitations
 
 1. States will not be input by their abbreviations
+2. Whitespace between commas counts as part of the field
