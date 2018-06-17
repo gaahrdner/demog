@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"sort"
 	"strings"
 
 	"github.com/urfave/cli"
@@ -13,11 +14,11 @@ import (
 
 //USState represents a state object
 type USState struct {
-	name         string
-	fips         string
-	population   int
-	households   int
-	medianIncome float64
+	name               string
+	fips               string
+	population         int
+	households         int
+	incomeBelowPoverty float64
 }
 
 //CensusAPI represents the geographic data from the api
@@ -110,7 +111,7 @@ func main() {
 		for _, s := range states {
 			// take a state and get the fips id
 			state := new(USState)
-			state.name = s
+			state.name = strings.Replace(s, "%20", " ", 1)
 
 			state.fips = getGeoData(s).Results.State[0].Fips
 
@@ -118,7 +119,7 @@ func main() {
 
 			state.households = demo.Results[0].Households
 			state.population = demo.Results[0].Population
-			state.medianIncome = demo.Results[0].MedianIncome
+			state.incomeBelowPoverty = demo.Results[0].IncomeBelowPoverty
 
 			data = append(data, state)
 
@@ -126,8 +127,12 @@ func main() {
 
 		if output == "csv" {
 			fmt.Println("name,fips,population,households,median_income")
+			sort.Slice(data, func(i, j int) bool {
+				return data[i].name < data[j].name
+			})
+
 			for _, s := range data {
-				fmt.Printf("%v,%v,%d,%d,%f\n", s.name, string(s.fips), s.population, s.households, s.medianIncome)
+				fmt.Printf("%v,%v,%d,%d,%f\n", s.name, string(s.fips), s.population, s.households, s.incomeBelowPoverty)
 			}
 		} else if output == "averages" {
 			fmt.Println(weightedAverage(data))
@@ -227,12 +232,12 @@ func getDemoData(fips string) *DemographicAPI {
 
 func weightedAverage(states []*USState) float64 {
 	var sumHouseholds int
-	var sumIncome float64
+	var sumIncomeBelowPoverty float64
 	for _, s := range states {
-		sumIncome += s.medianIncome * float64(s.households)
+		sumIncomeBelowPoverty += s.incomeBelowPoverty * float64(s.households)
 		sumHouseholds += s.households
 	}
-	return sumIncome / float64(sumHouseholds)
+	return sumIncomeBelowPoverty / float64(sumHouseholds)
 }
 
 // func (s *USState) toArray() []string {

@@ -2,6 +2,10 @@
 
  A command-line utility that retrieves demographic data for a specified set of U.S. states from a public API and outputs that data in the requested format.
 
+ If the specified output-format parameter is "CSV," the data is output in CSV format, sorted alphabetically by state.
+
+ If the specified output-parameter format is "averages," a single integer is output representing the weighted average of "income below poverty" across all the specified input states.
+
 ## Assumptions
 
 1. States will not be input by their abbreviations
